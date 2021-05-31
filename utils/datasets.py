@@ -181,17 +181,30 @@ class LoadImages:  # for inference
         else:
             # Read image
             self.count += 1
-            img0 = cv2.imread(path, -1)  # BGR (-1 is IMREAD_UNCHANGED)
+            if path.endswith('npz'):
+                with np.load(path) as data:
+                    if len(data) != 1 or "arr_0" not in data:
+                        raise Exception("More than 1 array in the npz or name invalid")
+                    arr = data['arr_0'].astype(np.float32)
+
+                if arr.shape[0] != arr.shape[1]:
+                    print("ERROR", path)
+                    
+                img0 = np.clip(arr, 0, 99999)
+                # return np.repeat(data[:, :, np.newaxis], 3, axis=2)
+            else:
+                img0 = cv2.imread(path, -1)  # BGR (-1 is IMREAD_UNCHANGED)
             assert img0 is not None, 'Image Not Found ' + path
             print(f'image {self.count}/{self.nf} {path}: ', end='')
 
         # Padded resize
         img = letterbox(img0, self.img_size, stride=self.stride)[0]
 
-        # Convert
-        img = img[:, :, ::-1].transpose(2, 0, 1)  # BGR to RGB, to 3x416x416
-        img = np.ascontiguousarray(img)
-
+        if not path.endswith('npz'):
+            # Convert
+            img = img[:, :, ::-1].transpose(2, 0, 1)  # BGR to RGB, to 3x416x416
+            img = np.ascontiguousarray(img)
+    
         return path, img, img0, self.cap
 
     def new_video(self, path):
@@ -638,7 +651,19 @@ def load_image(self, index):
     img = self.imgs[index]
     if img is None:  # not cached
         path = self.img_files[index]
-        img = cv2.imread(path)  # BGR
+        if path.endswith('npz'):
+            with np.load(path) as data:
+                if len(data) != 1 or "arr_0" not in data:
+                    raise Exception("More than 1 array in the npz or name invalid")
+                arr = data['arr_0'].astype(np.float32)
+
+            if arr.shape[0] != arr.shape[1]:
+                print("ERROR", path)
+                
+            img = np.clip(arr, 0, 99999)
+            # return np.repeat(data[:, :, np.newaxis], 3, axis=2)
+        else:
+            img = cv2.imread(path)  # BGR
         assert img is not None, 'Image Not Found ' + path
         h0, w0 = img.shape[:2]  # orig hw
         r = self.img_size / max(h0, w0)  # ratio
